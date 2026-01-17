@@ -1,0 +1,9 @@
+[package]
+name = "tablet-mode-keyboard"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+evdev = "0.13"
+input = "0.9"
+libc = "0.2"
