@@ -20,7 +20,7 @@ All the accelerometers work out of the box, so GNOME has all the information it 
 
 The solution: Build a fake one. The `tablet-mode` executable creates an evdev input device whose sole purpose is to emit `SW_TABLET_MODE(1)` and force GNOME permanently into tablet mode. This turns on GNOME's auto-rotation feature.
 
-udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that appears to swap around the accelerometer's values, to account for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it changes the display orientation. This is the purpose of `60-sensor-local.hwdb`: to change `ACCEL_MOUNT_MATRIX` for this sensor back to the identity matrix.
+udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that appears to swap around the accelerometer's values, to account for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it changes the display orientation. This is the purpose of `61-sensor-local.hwdb`: to change `ACCEL_MOUNT_MATRIX` for this sensor back to the identity matrix.
 
 ## Show the on-screen keyboard
 
