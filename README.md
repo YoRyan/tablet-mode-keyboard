@@ -1,5 +1,7 @@
 This repository documents my ongoing attempt to turn the 1st-generation Lenovo Legion Go into a modern Linux ultra-mobile PC (UMPC) with a gorgeous high-resolution display and three operating modes (gaming, laptop, tablet).
 
+[Other efforts](https://github.com/aarron-lee/legion-go-tricks) have focused on porting SteamOS to this device and reinstating all the "gamer" features, like RGB lighting and fan curves. I am focusing on the desktop and tablet use cases.
+
 The target platform is Fedora Silverblue with the GNOME desktop. I use a 3D-printed keyboard cover sold by [Tango Tactical](https://www.etsy.com/listing/1897686079/lenovo-legion-go-1-keyboard-attachment) that connects via Bluetooth.
 
 ## Disk encryption
