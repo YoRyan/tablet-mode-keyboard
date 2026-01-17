@@ -1,0 +1,12 @@
+[Unit]
+Description=Force tablet mode on
+Before=gdm.service
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/tablet-mode
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=graphical.target
