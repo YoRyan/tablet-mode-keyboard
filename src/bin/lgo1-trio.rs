@@ -1,18 +1,12 @@
-use dbus::blocking::Connection;
-use dbus::message::MatchRule;
-use dbus_crossroads::{Crossroads, IfaceBuilder};
-use evdev::{AttributeSet, BusType, Device, KeyCode, SwitchCode, uinput::VirtualDevice};
-use libc::{POLLIN, nfds_t, pollfd, ppoll};
 use std::collections::HashSet;
-use std::error::Error;
-use std::io;
-use std::ptr;
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 use std::time::Duration;
-use udev::{EventType, MonitorBuilder};
 
-type Result<T> = std::result::Result<T, Box<dyn Error>>;
+use dbus_crossroads::Crossroads;
+use evdev::{AttributeSet, BusType, KeyCode, SwitchCode};
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 enum KeyboardStatus {
     /// The keyboard case is connected.
@@ -65,7 +59,7 @@ fn make_dbus_crossroads() -> Crossroads {
     let mut cr = Crossroads::new();
     let iface_token = cr.register(
         "com.youngryan.LGo1Trio",
-        |b: &mut IfaceBuilder<DBusObject>| {
+        |b: &mut dbus_crossroads::IfaceBuilder<DBusObject>| {
             b.property("KeyboardStatus")
                 .get(|_, obj| Ok(obj.keyboard_status));
         },
@@ -83,25 +77,27 @@ fn make_dbus_crossroads() -> Crossroads {
 fn read_udev_events(notify: &mpsc::SyncSender<()>) -> Result<()> {
     use std::os::unix::io::AsRawFd;
 
-    let socket = MonitorBuilder::new()?.match_subsystem("input")?.listen()?;
+    let socket = udev::MonitorBuilder::new()?
+        .match_subsystem("input")?
+        .listen()?;
 
-    let mut fds = vec![pollfd {
+    let mut fds = vec![libc::pollfd {
         fd: socket.as_raw_fd(),
-        events: POLLIN,
+        events: libc::POLLIN,
         revents: 0,
     }];
 
     loop {
         let result = unsafe {
-            ppoll(
+            libc::ppoll(
                 (&mut fds[..]).as_mut_ptr(),
-                fds.len() as nfds_t,
-                ptr::null_mut(),
-                ptr::null(),
+                fds.len() as libc::nfds_t,
+                std::ptr::null_mut(),
+                std::ptr::null(),
             )
         };
         if result < 0 {
-            return Err(From::from(io::Error::last_os_error()));
+            return Err(From::from(std::io::Error::last_os_error()));
         }
         let event = match socket.iter().next() {
             Some(evt) => evt,
@@ -111,7 +107,7 @@ fn read_udev_events(notify: &mpsc::SyncSender<()>) -> Result<()> {
             }
         };
         match event.event_type() {
-            EventType::Add | EventType::Remove => {
+            udev::EventType::Add | udev::EventType::Remove => {
                 let _ = notify.try_send(());
             }
             _ => {}
@@ -144,7 +140,7 @@ fn read_keyboard_status(wait: &mpsc::Receiver<()>, cr: &Arc<Mutex<Crossroads>>) 
     }
 }
 
-fn keyboard_status(evdev_devices: Vec<Device>) -> KeyboardStatus {
+fn keyboard_status(evdev_devices: Vec<evdev::Device>) -> KeyboardStatus {
     const TEST_KEYS: [KeyCode; 3] = [KeyCode::KEY_ENTER, KeyCode::KEY_BACKSPACE, KeyCode::KEY_ESC];
     const INTERNAL_BLACKLIST: [(BusType, u16, u16); 2] = [
         (BusType::BUS_I8042, 0x1, 0x1),     // AT Translated Set 2 keyboard
@@ -177,12 +173,12 @@ fn keyboard_status(evdev_devices: Vec<Device>) -> KeyboardStatus {
 fn run_dbus(cr: &Arc<Mutex<Crossroads>>) -> Result<()> {
     use dbus::channel::MatchingReceiver;
 
-    let c = Connection::new_system()?;
+    let c = dbus::blocking::Connection::new_system()?;
     c.request_name("com.youngryan.LGo1Trio", false, true, false)?;
 
     let cr = cr.clone();
     c.start_receive(
-        MatchRule::new_method_call(),
+        dbus::message::MatchRule::new_method_call(),
         Box::new(move |msg, conn| {
             let mut cr_lock = cr.lock().unwrap();
             let _ = cr_lock.handle_message(msg, conn);
@@ -208,7 +204,7 @@ fn run_virtual_device() -> Result<()> {
 
     let keys = AttributeSet::<KeyCode>::from_iter(FORWARD_KEYS.iter());
     let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
-    let mut device = VirtualDevice::builder()?
+    let mut device = evdev::uinput::VirtualDevice::builder()?
         .name("lgo1-trio virtual input device")
         .with_keys(&keys)?
         .with_switches(&switches)?
