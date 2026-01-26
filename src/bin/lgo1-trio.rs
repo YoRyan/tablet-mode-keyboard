@@ -186,7 +186,7 @@ fn run_dbus(cr: &Arc<Mutex<Crossroads>>) -> Result<()> {
         }),
     );
     loop {
-        c.process(Duration::from_secs(60))?;
+        c.process(Duration::from_secs(120))?;
     }
 }
 
