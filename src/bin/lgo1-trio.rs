@@ -133,14 +133,13 @@ fn read_keyboard_status(wait: &mpsc::Receiver<()>, cr: &Arc<Mutex<Crossroads>>) 
             }
         }
 
-        let status = keyboard_status(evdev::enumerate().map(|t| t.1).collect());
         let mut cr_lock = cr.lock().unwrap();
         let obj: &mut DBusObject = cr_lock.data_mut(&DBUS_OBJECT_PATH.into()).unwrap();
-        obj.keyboard_status = status as u32;
+        obj.keyboard_status = keyboard_status() as u32;
     }
 }
 
-fn keyboard_status(evdev_devices: Vec<evdev::Device>) -> KeyboardStatus {
+fn keyboard_status() -> KeyboardStatus {
     const TEST_KEYS: [KeyCode; 3] = [KeyCode::KEY_ENTER, KeyCode::KEY_BACKSPACE, KeyCode::KEY_ESC];
     const INTERNAL_BLACKLIST: [(BusType, u16, u16); 2] = [
         (BusType::BUS_I8042, 0x1, 0x1),     // AT Translated Set 2 keyboard
@@ -151,17 +150,16 @@ fn keyboard_status(evdev_devices: Vec<evdev::Device>) -> KeyboardStatus {
         .map(|&(bus_type, vendor, product)| (bus_type.0, vendor, product))
         .collect();
 
-    for d in evdev_devices.iter() {
+    for d in evdev::enumerate().map(|(_, d)| d) {
         let id = d.input_id();
         let id_t = (id.bus_type().0, id.vendor(), id.product());
         if id_t == (BusType::BUS_BLUETOOTH.0, 0x04e8, 0x7021) {
             return KeyboardStatus::CaseExternal;
         }
 
-        let looks_like_keyboard = match d.supported_keys() {
-            Some(s) => TEST_KEYS.iter().all(|&k| s.contains(k)),
-            None => false,
-        };
+        let looks_like_keyboard = d.supported_keys().map_or(false, |attr_set| {
+            TEST_KEYS.iter().all(|&k| attr_set.contains(k))
+        });
         let is_blacklisted = internal_blacklist.contains(&id_t);
         if looks_like_keyboard && !is_blacklisted {
             return KeyboardStatus::AnyExternal;
@@ -195,9 +193,9 @@ fn run_virtual_device() -> Result<()> {
     let forward_codes: HashSet<u16> = FORWARD_KEYS.iter().map(|k| k.0).collect();
 
     let mut internal_keyboard = evdev::enumerate()
-        .map(|t| t.1)
-        .find(|device| {
-            let id = device.input_id();
+        .map(|(_, d)| d)
+        .find(|d| {
+            let id = d.input_id();
             id.bus_type() == BusType::BUS_I8042 && id.vendor() == 0x1 && id.product() == 0x1
         })
         .ok_or("could not find internal keyboard")?;
